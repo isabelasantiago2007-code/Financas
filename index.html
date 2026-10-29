@@ -183,7 +183,9 @@ function lerData(s) {
 function lerDespesas(t) {
   const lista = []; let ruins = 0;
   extrairObjetos(t).forEach((s, i) => {
-    let o; try { o = JSON.parse(s); } catch (e) { ruins++; return; }
+    let o; try { o = JSON.parse(s); } catch (e) {
+      try { o = JSON.parse(s.replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"').replace(/[\u0000-\u001F\u200B\uFEFF]/g, "")); } catch (e2) { ruins++; return; }
+    }
     const k = {}; Object.keys(o).forEach(x => { k[norm(x)] = o[x]; });
     if (k.diapagamento != null) return;
     const v = parseValor(k.valor != null ? k.valor : k.amount);
@@ -196,19 +198,33 @@ function lerDespesas(t) {
 }
 function lerHash() {
   let h = location.hash.slice(1);
-  if (!h) return "";
+  if (!h) { const m = location.search.match(/[?&]d=([^&]*)/); if (m) h = m[1]; }
+  const n = h.length;
+  if (!n) return { texto: "", recebido: 0 };
   try { h = decodeURIComponent(h); } catch (e) {}
-  h = h.replace(/\s/g, "").replace(/-/g, "+").replace(/_/g, "/");
-  while (h.length % 4) h += "=";
-  try { const bin = atob(h); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); }
-  catch (e) { return ""; }
+  if (h.indexOf("{") > -1) return { texto: h, recebido: n }; // dados sem codificação
+  let b = h.replace(/ /g, "+").replace(/[^A-Za-z0-9+/_-]/g, "").replace(/-/g, "+").replace(/_/g, "/");
+  if (b.length % 4 === 1) b = b.slice(0, -1);
+  while (b.length % 4) b += "=";
+  try {
+    const by = Uint8Array.from(atob(b), c => c.charCodeAt(0));
+    let enc = "utf-8";
+    if (by[0] === 0xFF && by[1] === 0xFE) enc = "utf-16le";
+    else if (by[0] === 0xFE && by[1] === 0xFF) enc = "utf-16be";
+    else if (by.length > 3 && by[1] === 0 && by[3] === 0) enc = "utf-16le";
+    else if (by.length > 3 && by[0] === 0 && by[2] === 0) enc = "utf-16be";
+    return { texto: new TextDecoder(enc).decode(by).replace(/^\uFEFF/, ""), recebido: n };
+  }
+  catch (e) { return { texto: "", recebido: n }; }
 }
 function painelLeitura() {
-  const texto = lerHash();
+  const lido = lerHash();
+  const texto = lido.texto;
   const temDados = texto.length > 0;
   // Tira os dados da barra de endereço depois de lidos.
   if (temDados && history.replaceState) history.replaceState(null, "", location.pathname);
   window.addEventListener("hashchange", () => location.reload());
+  window.addEventListener("pageshow", e => { if (e.persisted && location.hash.length > 1) location.reload(); });
   let cfg = {};
   extrairObjetos(texto).forEach(s => { try { const o = JSON.parse(s); if (o && o.diaPagamento != null) cfg = o; } catch (e) {} });
   const TEMAS = ["azul", "lavanda", "rose", "ambar", "verde"];
@@ -300,7 +316,7 @@ function painelLeitura() {
       (g.length ? g.map(x => '<section class="dia"><div class="dia-t"><span>' + rotDia(x.data) + '</span><span class="num">' + brl(somar(x.itens)) +
         '</span></div><div class="bloco lista">' + lista(x.itens, false) + "</div></section>").join("") :
         vazio(busca ? "Nada encontrado para essa busca." : "Nenhuma despesa neste ciclo.")) +
-      (lidos.ruins ? '<p class="nota">' + lidos.ruins + (lidos.ruins === 1 ? " registro não pôde ser lido" : " registros não puderam ser lidos") + ". Confira no atalho “Editar gastos”.</p>" : "");
+      (lidos.ruins ? '<p class="nota">' + lidos.ruins + (lidos.ruins === 1 ? " registro não pôde ser lido" : " registros não puderam ser lidos") + '. Confira no atalho “Editar gastos”.</p><details class="nota"><summary>Ver o que o painel recebeu</summary><pre style="white-space:pre-wrap;word-break:break-all;font-size:12px">' + esc(texto.slice(0, 600)) + "</pre></details>" : "");
   }
   function telaLanc() {
     const cs = ciclos(); if (!filtroCiclo || !cs.some(x => x.id === filtroCiclo)) filtroCiclo = cs[0].id;
@@ -345,7 +361,7 @@ function painelLeitura() {
       '<section class="bloco"><button class="btn sec" data-verlanc="' + c.id + '">Ver lançamentos deste ciclo</button></section>';
   }
   function render() {
-    if (!temDados) { $("#app").innerHTML = '<header class="topo"><span class="marca">Finanças</span></header><section class="bloco"><h2>Abra pelo atalho</h2><p class="sub" style="margin-top:6px">Este painel mostra seus gastos quando é aberto pelo atalho “Finanças” no iPhone. Seus dados não ficam guardados nesta página.</p></section>'; document.querySelector("nav").style.display = "none"; return; }
+    if (!temDados) { $("#app").innerHTML = '<header class="topo"><span class="marca">Finanças</span></header><section class="bloco">' + (lido.recebido ? '<h2>Não consegui ler os dados</h2><p class="sub" style="margin-top:6px">O link chegou com ' + lido.recebido + ' caracteres, mas num formato que o painel não reconhece. Mande um print desta tela.</p>' : '<h2>Abra pelo atalho</h2><p class="sub" style="margin-top:6px">Este painel mostra seus gastos quando é aberto pelo atalho “Finanças” no iPhone. Seus dados não ficam guardados nesta página.</p>') + '</section>'; document.querySelector("nav").style.display = "none"; return; }
     $("#app").innerHTML = ({ inicio: telaInicio, lanc: telaLanc, hist: telaHist })[aba]();
     document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.aba === aba));
   }
