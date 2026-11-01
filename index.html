@@ -122,6 +122,28 @@ nav svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;st
 .aviso{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translate(-50%,-30px);opacity:0;visibility:hidden;background:var(--tinta);color:var(--sup);padding:10px 16px;border-radius:14px;font-size:14px;font-weight:600;transition:transform .25s,opacity .25s,visibility .25s;z-index:30;max-width:90vw}
 .aviso.ver{transform:translate(-50%,0);opacity:1;visibility:visible}.aviso.erro{background:var(--alerta);color:#fff}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+:root,:root[data-tema]{--fundo:#F5F6FA;--sup:#FFFFFF;--tinta:#1E2330;--suave:#6B7280;--linha:#E6E8F0;--verde:#4F46E5;--verde-2:#EEEFFE;--verde-3:#C9CCF6;--alerta:#D9534F;--ok:#2F9E6E;--dica:#B7791F;--dica-2:#FFF4DE}
+.delta.desce{color:var(--ok)}
+.hero .sub b{color:var(--tinta);font-weight:650}
+.dicas{background:linear-gradient(180deg,var(--dica-2),var(--sup) 70%)}
+.dica-l{list-style:none;margin:0;padding:0}
+.dica-l li{display:flex;gap:12px;align-items:flex-start}
+.dica-l li+li{margin-top:14px;padding-top:14px;border-top:1px solid var(--linha)}
+.dica-ic{flex:none;width:34px;height:34px;border-radius:11px;background:var(--dica-2);color:var(--dica);display:grid;place-items:center}
+.dica-ic svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dica-t{font-weight:650;margin-bottom:2px}
+.dica-l .sub b{color:var(--tinta);font-weight:650}
+
+.dias{cursor:pointer;padding-top:6px}
+.dias span.sel{background:var(--tinta)!important}
+.dica-toque{margin-top:8px;font-size:12px}
+.dia-det{margin-top:12px;background:var(--sup);border-radius:16px;padding:12px 14px;box-shadow:var(--sombra);animation:surge .18s ease-out}
+.dia-det-cab{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dia-det-cab span{display:flex;align-items:center;gap:10px}
+.fechar{width:28px;height:28px;border-radius:50%;background:var(--fundo);color:var(--suave);font-size:18px;line-height:1}
+.dia-det .itens li{cursor:default}
+@keyframes surge{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 </style></head><body>
 <main id="app"></main>
 <nav id="abas">
@@ -231,8 +253,9 @@ function painelLeitura() {
   document.documentElement.dataset.tema = TEMAS.includes(cfg.tema) ? cfg.tema : "azul";
   const orc = parseValor(cfg.orcamento);
   const lidos = lerDespesas(texto);
-  const S = { diaPagamento: Math.min(28, Math.max(1, parseInt(cfg.diaPagamento, 10) || 5)), orcamento: orc > 0 ? orc : null, despesas: lidos.lista };
+  const S = { diaPagamento: Math.min(28, Math.max(1, parseInt(cfg.diaPagamento, 10) || 1)), orcamento: orc > 0 ? orc : null, despesas: lidos.lista };
 
+  let diaSel = null;
   let aba = "inicio", filtroCiclo = null, busca = "", cicloAberto = null;
   const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
@@ -240,7 +263,9 @@ function painelLeitura() {
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const hojeISO = () => isoLocal(new Date());
   const curta = iso => { const p = iso.split("-").map(Number); return p[2] + " " + MESES[p[1] - 1]; };
-  const rotCiclo = c => curta(c.inicio) + " – " + curta(c.fim);
+  const MESES_L = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  const nomeMes = c => MESES_L[+c.inicio.slice(5, 7) - 1];
+  const rotCiclo = c => S.diaPagamento === 1 ? nomeMes(c).charAt(0).toUpperCase() + nomeMes(c).slice(1) + " de " + c.inicio.slice(0, 4) : curta(c.inicio) + " – " + curta(c.fim);
   const atual = () => cicloDe(hojeISO(), S.diaPagamento);
   const doCiclo = c => S.despesas.filter(d => d.data >= c.inicio && d.data <= c.fim);
   const ordenar = l => l.slice().sort((a, b) => (b.data + (b.hora || "")).localeCompare(a.data + (a.hora || "")) || (b.id > a.id ? 1 : -1));
@@ -248,6 +273,56 @@ function painelLeitura() {
   function porCat(l) {
     const m = {}; l.forEach(d => { m[d.categoria] = (m[d.categoria] || 0) + d.valor; });
     return Object.keys(m).map(k => ({ nome: k, total: Math.round(m[k] * 100) / 100 })).sort((a, b) => b.total - a.total);
+  }
+  const ICONE = '<svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg>';
+  function dicas(c, completo) {
+    const h = hojeISO(), nDias = diasEntre(c.inicio, c.fim) + 1;
+    const passados = completo ? nDias : Math.max(1, Math.min(nDias, diasEntre(c.inicio, h) + 1));
+    const l = doCiclo(c), total = somar(l), out = [];
+    if (l.length < 3) return [{ t: "Ainda é cedo para comparar", x: "Com mais alguns registros, aparecem aqui sugestões feitas a partir dos seus próprios gastos." }];
+    const ant = cicloDe(isoLocal(new Date(+c.inicio.slice(0, 4), +c.inicio.slice(5, 7) - 2, Math.min(S.diaPagamento, 28))), S.diaPagamento);
+    const limAnt = isoLocal(new Date(+ant.inicio.slice(0, 4), +ant.inicio.slice(5, 7) - 1, +ant.inicio.slice(8, 10) + Math.min(passados, diasEntre(ant.inicio, ant.fim) + 1) - 1));
+    const la = S.despesas.filter(d => d.data >= ant.inicio && d.data <= limAnt);
+    const pc = porCat(l), pa = {}; porCat(la).forEach(x => { pa[x.nome] = x.total; });
+    if (la.length) {
+      let m = null;
+      pc.forEach(x => { const a = pa[x.nome] || 0, dif = x.total - a; if (dif >= 20 && (a === 0 || dif / a >= 0.2) && (!m || dif > m.dif)) m = { nome: x.nome, dif: dif, a: a }; });
+      if (m) out.push({ peso: m.dif, t: esc(m.nome) + " subiu " + (m.a ? Math.round(m.dif / m.a * 100) + "%" : "este mês"),
+        x: "Você gastou <b>" + brl(m.dif) + "</b> a mais em " + esc(m.nome) + " do que no mesmo período de " + MESES_L[+ant.inicio.slice(5, 7) - 1] + ". Voltar ao nível anterior economiza esse valor." });
+    }
+    const peq = l.filter(d => d.valor <= 30);
+    if (peq.length >= 5) { const sp = somar(peq); out.push({ peso: sp / 2, t: "Pequenas compras somam muito",
+      x: peq.length + " compras de até R$ 30 somaram <b>" + brl(sp) + "</b>. Sozinhas parecem pouco, mas juntas pesam. Cortar metade delas economizaria cerca de <b>" + brl(sp / 2) + "</b>." }); }
+    if (pc.length && total >= 100 && pc[0].total / total >= 0.4) {
+      const top = pc[0], semanal = top.total / Math.max(1, passados / 7), mes = top.total / passados * nDias * 0.15;
+      out.push({ peso: mes, t: esc(top.nome) + " leva " + Math.round(top.total / total * 100) + "% do mês",
+        x: "É onde mais vai dinheiro. Um limite de <b>" + brl(semanal * 0.85) + " por semana</b> (15% abaixo da sua média) economizaria cerca de <b>" + brl(mes) + "</b> no mês." });
+    }
+    const ass = l.filter(d => norm(d.categoria) === "assinaturas");
+    if (ass.length) { const sa = somar(ass); out.push({ peso: sa * 0.3, t: "Revise as assinaturas",
+      x: plural(ass.length).replace("despesa", "cobrança") + " somando <b>" + brl(sa) + "</b>. Cancelar as que você não usou nas últimas semanas gera economia que se repete todo mês." }); }
+    const app = l.filter(d => /ifood|rappi|delivery|aiqfome|uber|\b99\b|zee? ?delivery/.test(norm(d.descricao)));
+    if (app.length >= 3) { const sd = somar(app); out.push({ peso: sd / 3, t: "Delivery e corridas por app",
+      x: app.length + " pedidos somaram <b>" + brl(sd) + "</b>. Trocar 1 em cada 3 por uma opção mais barata economizaria cerca de <b>" + brl(sd / 3) + "</b>." }); }
+    let sf = 0, su = 0, nf = 0, nu = 0;
+    for (let i = 0; i < passados; i++) {
+      const dt = new Date(+c.inicio.slice(0, 4), +c.inicio.slice(5, 7) - 1, +c.inicio.slice(8, 10) + i), iso = isoLocal(dt);
+      const v = somar(l.filter(d => d.data === iso)), fds = dt.getDay() === 0 || dt.getDay() === 6;
+      if (fds) { sf += v; nf++; } else { su += v; nu++; }
+    }
+    if (nf >= 2 && nu >= 3 && sf >= 50 && sf / nf > 1.5 * (su / nu)) out.push({ peso: (sf / nf - su / nu) * 2, t: "Fins de semana pesam mais",
+      x: "Média de <b>" + brl(sf / nf) + " por dia</b> no fim de semana, contra " + brl(su / nu) + " nos dias úteis. Planejar o passeio com antecedência costuma reduzir essa diferença." });
+    if (S.orcamento && !completo && passados < nDias) {
+      const proj = total / passados * nDias;
+      if (proj > S.orcamento) out.push({ peso: 1e9, t: "Ritmo acima do orçamento",
+        x: "Nesse ritmo, o mês fecha em <b>" + brl(proj) + "</b>. Para caber no orçamento, o limite daqui para frente é <b>" + brl(Math.max(0, (S.orcamento - total) / (nDias - passados))) + " por dia</b>." });
+    }
+    if (!out.length) return [{ t: "Tudo dentro do padrão", x: "Nenhum gasto fora do comum até agora. Continue registrando para comparar com os próximos meses." }];
+    return out.sort((a, b) => b.peso - a.peso);
+  }
+  function blocoDicas(c, completo, max) {
+    return '<section class="bloco dicas"><div class="cab"><h2>Onde dá para economizar</h2></div><ul class="dica-l">' +
+      dicas(c, completo).slice(0, max).map(d => '<li><span class="dica-ic" aria-hidden="true">' + ICONE + '</span><div><p class="dica-t">' + d.t + '</p><p class="sub">' + d.x + "</p></div></li>").join("") + "</ul></section>";
   }
   function ciclos() {
     const m = new Map(); const a = atual(); m.set(a.id, a);
@@ -271,13 +346,20 @@ function painelLeitura() {
   }
   function blocoCats(l, total) {
     const cs = porCat(l);
-    if (!cs.length) return vazio("Os gastos do ciclo aparecem aqui, separados por categoria.");
+    if (!cs.length) return vazio("Os gastos do mês aparecem aqui, separados por categoria.");
     const max = cs[0].total;
     return '<ul class="cats">' + cs.map(c =>
       '<li><div class="cat-l"><span>' + esc(c.nome) + "<small>" + Math.round(c.total / total * 100) + '%</small></span><span class="num">' + brl(c.total) +
       '</span></div><div class="cat-b"><span style="width:' + Math.max(2, c.total / max * 100) + '%"></span></div></li>').join("") + "</ul>";
   }
 
+  function detalheDia(c) {
+    if (!diaSel || diaSel < c.inicio || diaSel > c.fim) return '<p class="sub dica-toque">Toque em um dia do gráfico para ver o que foi gasto.</p>';
+    const l = ordenar(S.despesas.filter(d => d.data === diaSel));
+    return '<div class="dia-det"><div class="dia-det-cab"><b>' + rotDia(diaSel) + '</b><span><b class="num">' + brl(somar(l)) +
+      '</b><button class="fechar" data-fechadia="1" aria-label="Fechar">×</button></span></div>' +
+      (l.length ? lista(l, false) : '<p class="vazio-t">Nenhum gasto registrado neste dia.</p>') + "</div>";
+  }
   function telaInicio() {
     const c = atual(), l = doCiclo(c), total = somar(l), h = hojeISO();
     const tHoje = somar(l.filter(d => d.data === h));
@@ -287,8 +369,8 @@ function painelLeitura() {
     let barras = "";
     for (let i = 0; i < nDias; i++) {
       const iso = isoLocal(new Date(+c.inicio.slice(0, 4), +c.inicio.slice(5, 7) - 1, +c.inicio.slice(8, 10) + i)), v = porDia[iso] || 0;
-      const cls = iso === h ? "hoje" : iso > h ? "futuro" : v ? "" : "vazio";
-      barras += '<span class="' + cls + '" style="height:' + (iso > h ? 3 : Math.max(5, v / maxDia * 100)) + '%"></span>';
+      const cls = (iso === h ? "hoje" : iso > h ? "futuro" : v ? "" : "vazio") + (iso === diaSel ? " sel" : "");
+      barras += '<span data-dia="' + iso + '" class="' + cls + '" style="height:' + (iso > h ? 3 : Math.max(5, v / maxDia * 100)) + '%"></span>';
     }
     let orcH = "";
     if (S.orcamento) {
@@ -297,12 +379,13 @@ function painelLeitura() {
         '%"></span></div><div class="orc-l"><span>' + (resta >= 0 ? "Restam <b>" + brl(resta) + "</b>" : "Acima do orçamento em <b>" + brl(-resta) + "</b>") +
         "</span><span>de " + brl(S.orcamento) + "</span></div></div>";
     }
-    return '<header class="topo"><span class="marca">Finanças</span><span class="sub">' + (faltam === 1 ? "Pagamento amanhã" : "Pagamento em " + faltam + " dias") + "</span></header>" +
-      '<section class="hero"><h1>Gasto desde o pagamento</h1><p class="grande">' + valorGrande(total) + "</p>" +
+    return '<header class="topo"><span class="marca">Finanças</span><span class="sub">' + (S.diaPagamento === 1 ? (faltam === 1 ? "Último dia do mês" : "Faltam " + faltam + " dias para o mês fechar") : (faltam === 1 ? "Pagamento amanhã" : "Pagamento em " + faltam + " dias")) + "</span></header>" +
+      '<section class="hero"><h1>' + (S.diaPagamento === 1 ? "Gasto em " + nomeMes(c) : "Gasto desde o pagamento") + '</h1><p class="grande">' + valorGrande(total) + "</p>" +
+      (total > 0 && passados >= 5 && passados < nDias ? '<p class="sub">No ritmo atual, o mês fecha em cerca de <b class="num">' + brl(total / passados * nDias) + "</b>.</p>" : "") +
       '<div class="faixa"><div class="dias" aria-label="Gastos por dia no ciclo">' + barras + '</div><div class="faixa-rot sub"><span>' +
-      curta(c.inicio) + "</span><span>" + curta(c.fim) + "</span></div></div>" + orcH + "</section>" +
+      curta(c.inicio) + "</span><span>" + curta(c.fim) + "</span></div>" + detalheDia(c) + "</div>" + orcH + "</section>" +
       '<section class="duo"><div class="bloco"><p class="sub">Hoje</p><p class="medio">' + brl(tHoje) +
-      '</p></div><div class="bloco"><p class="sub">Média por dia</p><p class="medio">' + brl(total / passados) + '</p><p class="sub">' + plural(l.length) + "</p></div></section>" +
+      '</p></div><div class="bloco"><p class="sub">Média por dia</p><p class="medio">' + brl(total / passados) + '</p><p class="sub">' + plural(l.length) + "</p></div></section>" + blocoDicas(c, false, 3) +
       '<section class="bloco"><div class="cab"><h2>Por categoria</h2></div>' + blocoCats(l, total) + "</section>" +
       '<section class="bloco"><div class="cab"><h2>Últimas despesas</h2>' + (l.length > 5 ? '<button class="link" data-ir="lanc">Ver todas</button>' : "") +
       "</div>" + lista(ordenar(l).slice(0, 5), true) + "</section>";
@@ -315,7 +398,7 @@ function painelLeitura() {
     return '<p class="resumo">' + plural(l.length) + ", " + brl(somar(l)) + "</p>" +
       (g.length ? g.map(x => '<section class="dia"><div class="dia-t"><span>' + rotDia(x.data) + '</span><span class="num">' + brl(somar(x.itens)) +
         '</span></div><div class="bloco lista">' + lista(x.itens, false) + "</div></section>").join("") :
-        vazio(busca ? "Nada encontrado para essa busca." : "Nenhuma despesa neste ciclo.")) +
+        vazio(busca ? "Nada encontrado para essa busca." : "Nenhuma despesa neste mês.")) +
       (lidos.ruins ? '<p class="nota">' + lidos.ruins + (lidos.ruins === 1 ? " registro não pôde ser lido" : " registros não puderam ser lidos") + '. Confira no atalho “Editar gastos”.</p><details class="nota"><summary>Ver o que o painel recebeu</summary><pre style="white-space:pre-wrap;word-break:break-all;font-size:12px">' + esc(texto.slice(0, 600)) + "</pre></details>" : "");
   }
   function telaLanc() {
@@ -333,7 +416,7 @@ function painelLeitura() {
       '<section class="bloco"><div class="cab"><h2>Últimos ciclos</h2></div><div class="cols">' + ult.map((x, i) =>
         '<div class="col' + (i === ult.length - 1 ? " atual" : "") + '" data-ciclo="' + x.c.id + '"><b class="num">' + (x.total >= 1000 ? (x.total / 1000).toFixed(1).replace(".", ",") + " mil" : Math.round(x.total)) +
         '</b><i style="height:' + Math.max(2, x.total / max * 100) + '%"></i><small>' + MESES[+x.c.inicio.slice(5, 7) - 1] + "</small></div>").join("") +
-      '</div><p class="sub">Cada coluna é um ciclo, rotulada pelo mês em que ele começa.</p></section>' +
+      '</div><p class="sub">Cada coluna é um mês. Toque em uma para ver os detalhes.</p></section>' +
       '<section class="bloco"><ul class="ciclos">' + dados.map((x, i) => {
         const ant = dados[i + 1]; let delta = "";
         if (i === 0) delta = '<span class="delta">em andamento</span>';
@@ -350,15 +433,15 @@ function painelLeitura() {
     const max = Math.max(1, ...nomes.map(n => Math.max(atMapa[n] || 0, antMapa[n] || 0)));
     const dias = i === 0 ? diasEntre(c.inicio, hojeISO()) + 1 : diasEntre(c.inicio, c.fim) + 1;
     return '<button class="voltar" data-voltar="1">‹ Histórico</button><header class="topo"><span class="marca">' + rotCiclo(c) + "</span></header>" +
-      '<section class="hero"><h1>Total do ciclo' + (i === 0 ? " até agora" : "") + '</h1><p class="grande">' + valorGrande(total) + '</p><p class="sub">' +
+      '<section class="hero"><h1>Total do mês' + (i === 0 ? " até agora" : "") + '</h1><p class="grande">' + valorGrande(total) + '</p><p class="sub">' +
       plural(l.length) + ", média de " + brl(total / dias) + " por dia</p></section>" +
       '<section class="bloco"><div class="cab"><h2>Categorias</h2></div>' + (nomes.length ? '<ul class="cats">' + nomes.map(n => {
         const a = atMapa[n] || 0, b = antMapa[n] || 0;
         return '<li><div class="cat-l"><span>' + esc(n) + '</span><span class="num">' + brl(a) + '</span></div><div class="cat-b"><span style="width:' + (a / max * 100) +
-          '%"></span></div>' + (ant ? '<div class="cat-b ant"><span style="width:' + (b / max * 100) + '%"></span></div><p class="sub">Ciclo anterior: ' + brl(b) + "</p>" : "") + "</li>";
-      }).join("") + "</ul>" : vazio("Sem despesas neste ciclo.")) +
-      (ant ? '<p class="nota">A linha cinza mostra o ciclo ' + rotCiclo(ant) + ".</p>" : "") + "</section>" +
-      '<section class="bloco"><button class="btn sec" data-verlanc="' + c.id + '">Ver lançamentos deste ciclo</button></section>';
+          '%"></span></div>' + (ant ? '<div class="cat-b ant"><span style="width:' + (b / max * 100) + '%"></span></div><p class="sub">Mês anterior: ' + brl(b) + "</p>" : "") + "</li>";
+      }).join("") + "</ul>" : vazio("Sem despesas neste mês.")) +
+      (ant ? '<p class="nota">A linha cinza mostra ' + rotCiclo(ant) + ", para comparar.</p>" : "") + "</section>" +
+      '<section class="bloco"><button class="btn sec" data-verlanc="' + c.id + '">Ver lançamentos deste mês</button></section>' + blocoDicas(c, i !== 0, 5);
   }
   function render() {
     if (!temDados) { $("#app").innerHTML = '<header class="topo"><span class="marca">Finanças</span></header><section class="bloco">' + (lido.recebido ? '<h2>Não consegui ler os dados</h2><p class="sub" style="margin-top:6px">O link chegou com ' + lido.recebido + ' caracteres, mas num formato que o painel não reconhece. Mande um print desta tela.</p>' : '<h2>Abra pelo atalho</h2><p class="sub" style="margin-top:6px">Este painel mostra seus gastos quando é aberto pelo atalho “Finanças” no iPhone. Seus dados não ficam guardados nesta página.</p>') + '</section>'; document.querySelector("nav").style.display = "none"; return; }
@@ -367,8 +450,17 @@ function painelLeitura() {
   }
   function ir(a) { aba = a; if (a !== "hist") cicloAberto = null; render(); window.scrollTo(0, 0); }
   document.addEventListener("click", e => {
+    const graf = e.target.closest(".dias");
+    if (graf) {
+      const barras = [...graf.querySelectorAll("[data-dia]")], r = graf.getBoundingClientRect();
+      const i = Math.min(barras.length - 1, Math.max(0, Math.floor((e.clientX - r.left) / r.width * barras.length)));
+      const iso = barras[i].dataset.dia;
+      if (iso > hojeISO()) return;
+      diaSel = diaSel === iso ? null : iso; render(); return;
+    }
     const t = e.target.closest("button,[data-ciclo]"); if (!t) return;
     const ds = t.dataset;
+    if (ds.fechadia) { diaSel = null; return render(); }
     if (ds.aba) return ir(ds.aba);
     if (ds.ir) return ir(ds.ir);
     if (ds.ciclo) { aba = "hist"; cicloAberto = ds.ciclo; render(); return window.scrollTo(0, 0); }
