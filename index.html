@@ -444,12 +444,23 @@ function painelLeitura() {
       '<section class="bloco"><button class="btn sec" data-verlanc="' + c.id + '">Ver lançamentos deste mês</button></section>' + blocoDicas(c, i !== 0, 5);
   }
   function render() {
-    if (!temDados) { $("#app").innerHTML = '<header class="topo"><span class="marca">Finanças</span></header><section class="bloco">' + (lido.recebido ? '<h2>Não consegui ler os dados</h2><p class="sub" style="margin-top:6px">O link chegou com ' + lido.recebido + ' caracteres, mas num formato que o painel não reconhece. Mande um print desta tela.</p>' : '<h2>Abra pelo atalho</h2><p class="sub" style="margin-top:6px">Este painel mostra seus gastos quando é aberto pelo atalho “Finanças” no iPhone. Seus dados não ficam guardados nesta página.</p>') + '</section>'; document.querySelector("nav").style.display = "none"; return; }
+    if (!temDados) { $("#app").innerHTML = '<header class="topo"><span class="marca">Finanças</span></header><section class="bloco">' + (lido.recebido ? '<h2>Não consegui ler os dados</h2><p class="sub" style="margin-top:6px">O link chegou com ' + lido.recebido + ' caracteres, mas num formato que o painel não reconhece. Mande um print desta tela.</p>' : '<h2>Ver meus gastos</h2><p class="sub" style="margin:6px 0 14px">Abra pelo atalho “Finanças” e toque no botão abaixo. Se o iPhone mostrar “Colar”, toque nele.</p><button class="btn pri" data-colar="1">Carregar meus gastos</button><p class="nota" id="msgColar"></p>') + '</section>'; document.querySelector("nav").style.display = "none"; return; }
     $("#app").innerHTML = ({ inicio: telaInicio, lanc: telaLanc, hist: telaHist })[aba]();
     document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.aba === aba));
   }
   function ir(a) { aba = a; if (a !== "hist") cicloAberto = null; render(); window.scrollTo(0, 0); }
   document.addEventListener("click", e => {
+    if (e.target.closest("[data-colar]")) {
+      const msg = document.getElementById("msgColar");
+      if (!navigator.clipboard || !navigator.clipboard.readText) { msg.textContent = "Este navegador não permite colar automaticamente."; return; }
+      navigator.clipboard.readText().then(t => {
+        if (!t || t.indexOf("{") < 0) { msg.textContent = "Nenhum gasto encontrado. Abra pelo atalho “Finanças” e tente de novo."; return; }
+        try { navigator.clipboard.writeText(""); } catch (x) {}
+        const by = new TextEncoder().encode(t); let bin = ""; by.forEach(c => { bin += String.fromCharCode(c); });
+        location.hash = btoa(bin);
+      }).catch(() => { msg.textContent = "Toque em “Colar” quando o iPhone perguntar."; });
+      return;
+    }
     const graf = e.target.closest(".dias");
     if (graf) {
       const barras = [...graf.querySelectorAll("[data-dia]")], r = graf.getBoundingClientRect();
